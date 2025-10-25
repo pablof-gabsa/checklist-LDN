@@ -19,7 +19,7 @@
         body { background-color: #f3f4f6; }
         .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.5s ease-out; }
         .accordion-content.open { max-height: 2000px; transition: max-height 1s ease-in-out; }
-        .filter-btn.active { background-color: #009999; color: white; }
+        .filter-btn.active { background-color: #009999; color: white; border-color: #009999;}
     </style>
 </head>
 <body class="antialiased">
@@ -29,16 +29,25 @@
             <p class="text-md text-gray-600 mt-2">Seguimiento interactivo del estado de temas pendientes (Modo solo lectura)</p>
         </header>
 
-        <div id="controls" class="bg-white p-4 rounded-lg shadow-md mb-8 flex items-center justify-between gap-4">
+        <div id="controls" class="bg-white p-4 rounded-lg shadow-md mb-8 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div class="flex items-center gap-2">
                 <span class="text-gray-600 font-bold">Modo Visualización</span>
             </div>
-            <div id="filters" class="flex flex-wrap items-center gap-2">
-                <span class="text-sm font-semibold text-gray-600 mr-2">Filtrar:</span>
-                <button class="filter-btn active py-1 px-3 rounded-full text-sm transition-colors border" data-filter="Todos">Todos</button>
-                <button class="filter-btn py-1 px-3 rounded-full text-sm transition-colors border" data-filter="Pendiente">Pendiente</button>
-                <button class="filter-btn py-1 px-3 rounded-full text-sm transition-colors border" data-filter="En Proceso">En Proceso</button>
-                <button class="filter-btn py-1 px-3 rounded-full text-sm transition-colors border" data-filter="OK">OK</button>
+            <div class="flex flex-col sm:flex-row gap-4 items-center">
+                <div id="status-filters" class="flex flex-wrap items-center gap-2">
+                    <span class="text-sm font-semibold text-gray-600 mr-2">Estado:</span>
+                    <button class="filter-btn active py-1 px-3 rounded-full text-sm transition-colors border" data-filter-type="status" data-filter="Todos">Todos</button>
+                    <button class="filter-btn py-1 px-3 rounded-full text-sm transition-colors border" data-filter-type="status" data-filter="Pendiente">Pendiente</button>
+                    <button class="filter-btn py-1 px-3 rounded-full text-sm transition-colors border" data-filter-type="status" data-filter="En Proceso">En Proceso</button>
+                    <button class="filter-btn py-1 px-3 rounded-full text-sm transition-colors border" data-filter-type="status" data-filter="OK">OK</button>
+                </div>
+                <div id="priority-filters" class="flex flex-wrap items-center gap-2 border-t sm:border-t-0 sm:border-l pt-2 sm:pt-0 sm:pl-4 mt-2 sm:mt-0">
+                    <span class="text-sm font-semibold text-gray-600 mr-2">Prioridad:</span>
+                    <button class="filter-btn active py-1 px-3 rounded-full text-sm transition-colors border" data-filter-type="priority" data-filter="Todos">Todas</button>
+                    <button class="filter-btn py-1 px-3 rounded-full text-sm transition-colors border" data-filter-type="priority" data-filter="Baja">Baja</button>
+                    <button class="filter-btn py-1 px-3 rounded-full text-sm transition-colors border" data-filter-type="priority" data-filter="Media">Media</button>
+                    <button class="filter-btn py-1 px-3 rounded-full text-sm transition-colors border" data-filter-type="priority" data-filter="Alta">Alta</button>
+                </div>
             </div>
         </div>
 
@@ -85,11 +94,19 @@
         let checklistData = [];
         let statusChart = null;
         let responsibleChart = null; 
-        let currentFilter = 'Todos';
+        let currentStatusFilter = 'Todos';
+        let currentPriorityFilter = 'Todos';
 
         const rubros = ['Operativos', 'Obras de infraestructura', 'Administrativos', 'Archivado'];
         const statusOptions = { 'Pendiente': 'bg-yellow-100 text-yellow-800', 'OK': 'bg-green-100 text-green-800', 'En Proceso': 'bg-blue-100 text-blue-800' };
         const statusColors = { 'Pendiente': '#FBBF24', 'OK': '#10B981', 'En Proceso': '#60A5FA' };
+        
+        const priorityStyles = {
+            'Alta': 'bg-red-100 text-red-800',
+            'Media': 'bg-yellow-100 text-yellow-800',
+            'Baja': 'bg-gray-100 text-gray-800',
+        };
+
         const rubroIcons = {
             'Operativos': `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
             'Obras de infraestructura': `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>`,
@@ -100,7 +117,12 @@
         function loadData() {
             database.ref('tasks').on('value', (snapshot) => {
                 const data = snapshot.val();
-                checklistData = data ? (Array.isArray(data) ? data : Object.values(data)) : [];
+                if (data) {
+                    checklistData = Array.isArray(data) ? data : Object.values(data);
+                    checklistData = checklistData.map(item => ({...item, prioridad: item.prioridad || 'Baja'}));
+                } else {
+                    checklistData = [];
+                }
                 renderChecklist();
             });
         }
@@ -108,7 +130,10 @@
         function renderChecklist() {
             const container = document.getElementById('checklist-container');
             container.innerHTML = '';
-            const filteredData = checklistData.filter(item => currentFilter === 'Todos' || item.estado === currentFilter);
+            const filteredData = checklistData.filter(item => 
+                (currentStatusFilter === 'Todos' || item.estado === currentStatusFilter) &&
+                (currentPriorityFilter === 'Todos' || item.prioridad === currentPriorityFilter)
+            );
             const groupedData = filteredData.reduce((acc, item) => { (acc[item.rubro] = acc[item.rubro] || []).push(item); return acc; }, {});
 
             rubros.forEach(rubro => {
@@ -138,6 +163,11 @@
                         requerimientoP.className = 'flex-1 text-gray-800 font-medium';
                         requerimientoP.textContent = item.requerimiento;
                         taskRow.appendChild(requerimientoP);
+
+                        const priorityBadge = document.createElement('span');
+                        priorityBadge.textContent = item.prioridad || 'Baja';
+                        priorityBadge.className = `px-2 py-1 text-xs font-semibold rounded-full ${priorityStyles[item.prioridad] || priorityStyles['Baja']}`;
+                        taskRow.appendChild(priorityBadge);
                         
                         const responsibleSpan = document.createElement('span');
                         responsibleSpan.className = 'text-sm text-gray-700 w-36';
@@ -167,13 +197,19 @@
         }
         
         function updateSummary() {
-            const dataToSummarize = checklistData.filter(item => currentFilter === 'Todos' || item.estado === currentFilter);
+            const dataToSummarize = checklistData.filter(item => 
+                (currentStatusFilter === 'Todos' || item.estado === currentStatusFilter) &&
+                (currentPriorityFilter === 'Todos' || item.prioridad === currentPriorityFilter)
+            );
             const total = dataToSummarize.length;
             const stats = dataToSummarize.reduce((acc, item) => { (acc[item.estado] = (acc[item.estado] || 0) + 1); return acc; }, {});
             const okCount = stats['OK'] || 0;
             const progress = total > 0 ? (okCount / total) * 100 : 0;
             document.getElementById('progressBar').style.width = `${progress}%`;
-            document.getElementById('filter-label').textContent = currentFilter !== 'Todos' ? `(Filtro: ${currentFilter})` : '';
+            let filterText = [];
+            if (currentStatusFilter !== 'Todos') filterText.push(`Estado: ${currentStatusFilter}`);
+            if (currentPriorityFilter !== 'Todos') filterText.push(`Prioridad: ${currentPriorityFilter}`);
+            document.getElementById('filter-label').textContent = filterText.length > 0 ? `(${filterText.join(', ')})` : '';
             renderPieChart(stats);
             renderResponsibleChart(dataToSummarize);
             const statsContainer = document.getElementById('stats');
@@ -207,10 +243,16 @@
             responsibleChart = new Chart(ctx, { type: 'bar', data: { labels: labels, datasets: [{ label: 'Tareas Asignadas', data: chartData, backgroundColor: 'rgba(0, 153, 153, 0.6)', borderColor: 'rgba(0, 153, 153, 1)', borderWidth: 1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false }, title: { display: true, text: 'Tareas por Responsable' } } } });
         }
         function handleFilterClick(event) {
-            const filter = event.target.dataset.filter;
-            if (filter) {
-                currentFilter = filter;
-                document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            const filterType = event.target.dataset.filterType;
+            const filterValue = event.target.dataset.filter;
+            if (filterType) {
+                if (filterType === 'status') {
+                    currentStatusFilter = filterValue;
+                    document.querySelectorAll('#status-filters .filter-btn').forEach(btn => btn.classList.remove('active'));
+                } else if (filterType === 'priority') {
+                    currentPriorityFilter = filterValue;
+                    document.querySelectorAll('#priority-filters .filter-btn').forEach(btn => btn.classList.remove('active'));
+                }
                 event.target.classList.add('active');
                 renderChecklist();
             }
@@ -218,7 +260,8 @@
         function toggleAccordion(accordionItem) { const content = accordionItem.querySelector('.accordion-content'); const icon = accordionItem.querySelector('svg:last-child'); content.classList.toggle('open'); icon.classList.toggle('rotate-180'); }
         
         document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('filters').addEventListener('click', handleFilterClick);
+            document.getElementById('status-filters').addEventListener('click', handleFilterClick);
+            document.getElementById('priority-filters').addEventListener('click', handleFilterClick);
             loadData();
         });
     </script>
