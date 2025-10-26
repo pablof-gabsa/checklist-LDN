@@ -6,8 +6,6 @@
     <title>Reporte Plan de trabajo LAGOS DEL NORTE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
     <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
@@ -20,15 +18,24 @@
         html { font-family: 'Inter', sans-serif; }
         body { background-color: #f3f4f6; }
         .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.5s ease-out; }
-        .accordion-content.open { max-height: 2000px; transition: max-height 1s ease-in-out; }
+        .accordion-content.open { max-height: 5000px; }
         .filter-btn.active { background-color: #009999; color: white; border-color: #009999;}
+        
+        @media print {
+            body { background-color: white; }
+            #form-overlay, #controls, #summary, footer, .no-print { display: none !important; }
+            main, .container { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+            .accordion-content { max-height: none !important; display: block !important; }
+            .bg-white { box-shadow: none !important; }
+            @page { size: landscape; }
+        }
     </style>
 </head>
 <body class="antialiased">
     <div class="container mx-auto p-4 sm:p-6 lg:p-8">
         <header class="text-center mb-8">
             <h1 class="text-3xl sm:text-4xl font-bold text-institutional">Plan de trabajo LAGOS DEL NORTE</h1>
-            <p class="text-xs text-gray-400 font-semibold mt-1">V 3.2</p>
+            <p class="text-xs text-gray-400 font-semibold mt-1">V 3.4</p>
             <p class="text-md text-gray-600 mt-2">Seguimiento interactivo del estado del plan de trabajo (Modo solo lectura)</p>
         </header>
 
@@ -143,19 +150,15 @@
             });
         }
 
-        function renderChecklist() {
-            const container = document.getElementById('checklist-container');
-            container.innerHTML = '';
+        function getFilteredData() {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
-
-            let filteredData = checklistData.filter(item => 
+            let filtered = checklistData.filter(item => 
                 (currentStatusFilter === 'Todos' || item.estado === currentStatusFilter) &&
                 (currentPriorityFilter === 'Todos' || item.prioridad === currentPriorityFilter)
             );
-
             if (currentDateFilter !== 'Todas') {
-                filteredData = filteredData.filter(item => {
+                filtered = filtered.filter(item => {
                     if (!item.deadline) return false;
                     const taskDate = new Date(item.deadline + 'T00:00:00');
                     if (currentDateFilter === 'Vencidas') {
@@ -169,7 +172,15 @@
                     return true;
                 });
             }
-            
+            return filtered;
+        }
+
+        function renderChecklist() {
+            const container = document.getElementById('checklist-container');
+            container.innerHTML = '';
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const filteredData = getFilteredData();
             const groupedData = filteredData.reduce((acc, item) => { (acc[item.rubro] = acc[item.rubro] || []).push(item); return acc; }, {});
 
             rubros.forEach(rubro => {
@@ -258,22 +269,7 @@
         }
         
         function updateSummary() {
-            const dataToSummarize = checklistData.filter(item => 
-                (currentStatusFilter === 'Todos' || item.estado === currentStatusFilter) &&
-                (currentPriorityFilter === 'Todos' || item.prioridad === currentPriorityFilter) &&
-                (currentDateFilter === 'Todas' || (()=>{
-                    if (!item.deadline) return false;
-                    const today = new Date(); today.setHours(0,0,0,0);
-                    const taskDate = new Date(item.deadline + 'T00:00:00');
-                    if (currentDateFilter === 'Vencidas') return taskDate < today && item.estado !== 'OK';
-                    if (currentDateFilter === 'Proximas') {
-                        const sevenDaysFromNow = new Date(today);
-                        sevenDaysFromNow.setDate(today.getDate() + 7);
-                        return taskDate >= today && taskDate <= sevenDaysFromNow;
-                    }
-                    return true;
-                })())
-            );
+            const dataToSummarize = getFilteredData();
             const total = dataToSummarize.length;
             const stats = dataToSummarize.reduce((acc, item) => { (acc[item.estado] = (acc[item.estado] || 0) + 1); return acc; }, {});
             const okCount = stats['OK'] || 0;
@@ -331,7 +327,14 @@
         }
         function toggleAccordion(accordionItem) { const content = accordionItem.querySelector('.accordion-content'); const icon = accordionItem.querySelector('svg:last-child'); content.classList.toggle('open'); icon.classList.toggle('rotate-180'); }
         
-        function exportToPDF() { const { jsPDF } = window.jspdf; const header = document.querySelector('header'); const checklistContainer = document.getElementById('checklist-container'); const printContainer = document.createElement('div'); printContainer.style.padding = '20px'; printContainer.style.backgroundColor = 'white'; printContainer.innerHTML = header.outerHTML + checklistContainer.outerHTML; printContainer.querySelectorAll('.cursor-pointer svg.transition-transform').forEach(el => el.remove()); printContainer.querySelectorAll('.flex.items-center.gap-x-2').forEach(el => el.remove()); printContainer.querySelectorAll('input[type="text"], input[type="date"]').forEach(input => { const text = document.createElement('span'); text.textContent = input.value; text.className = 'text-sm p-1'; input.parentNode.replaceChild(text, input); }); printContainer.querySelectorAll('.status-select, .responsible-select, .priority-select').forEach(select => { const value = select.value; const span = document.createElement('span'); span.textContent = value; span.className = 'p-2 rounded-md text-sm font-semibold ' + (priorityStyles[value] || statusOptions[value] || ''); select.parentNode.replaceChild(span, select); }); document.body.appendChild(printContainer); html2canvas(printContainer, { scale: 2, windowWidth: printContainer.scrollWidth, windowHeight: printContainer.scrollHeight }).then(canvas => { document.body.removeChild(printContainer); const imgData = canvas.toDataURL('image/png'); const pdf = new jsPDF('p', 'mm', 'a4'); const pdfWidth = pdf.internal.pageSize.getWidth(); const pdfHeight = pdf.internal.pageSize.getHeight(); const canvasWidth = canvas.width; const canvasHeight = canvas.height; const ratio = canvasWidth / canvasHeight; const imgWidth = pdfWidth - 20; const imgHeight = imgWidth / ratio; let heightLeft = imgHeight; let position = 10; pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight); heightLeft -= (pdfHeight - 20); while (heightLeft > 0) { position = position - pdfHeight + 20; pdf.addPage(); pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight); heightLeft -= (pdfHeight - 20); } pdf.save(`checklist-pendientes-${new Date().toISOString().slice(0,10)}.pdf`); }); }
+        function exportToPDF() {
+            document.querySelectorAll('.accordion-content:not(.open)').forEach(content => {
+                content.classList.add('open');
+            });
+            setTimeout(() => {
+                window.print();
+            }, 500);
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('status-filters').addEventListener('click', handleFilterClick);
